@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>JS Robot Ball Game 2.5D</title>
+    <!-- Import Planck.js Physics Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/planck-js@0.3.31/dist/planck.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <button id="darkModeToggle">☀️ Light Mode</button>
+
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="infoPanel">
+            <div class="player-info-container"> 
+                <div class="player-info-column" id="player1Info">
+                    <p class="player-name">Player 1 (Blue)</p>
+                    <div class="sprint-bar-container">
+                        <div id="p1SprintBarFill" class="sprint-bar-fill"></div>
+                    </div>
+                    <p id="blueStatusText">Status: Player</p>
+                </div>
+                <div class="player-info-column" id="player2Info">
+                    <p class="player-name">Player 2 (Green)</p>
+                    <div class="sprint-bar-container">
+                        <div id="p2SprintBarFill" class="sprint-bar-fill"></div>
+                    </div>
+                    <p id="greenStatusText">Status: Player</p>
+                </div>
+            </div>
+            <div class="game-stats-row">
+                <p id="scoreText">Score: Blue 0 - Green 0</p>
+                <p id="totalTimeText">Total Playtime: 0s</p>
+                <p id="roundTimeText">Current Round: 0s</p>
+                <p id="pauseHelpText">P: Pause | H: Help | 1/2: Cycle AI</p>
+            </div>
+        </div>
+        <div id="touchControlsContainer">
+            <div id="player1TouchControls" class="touch-controls">
+                <p>Player 1 (Blue)</p>
+                <div class="d-pad">
+                    <button id="p1TouchUp" class="touch-button d-pad-up">↑</button>
+                    <div>
+                        <button id="p1TouchLeft" class="touch-button d-pad-left">←</button>
+                        <button id="p1TouchDown" class="touch-button d-pad-down">↓</button>
+                        <button id="p1TouchRight" class="touch-button d-pad-right">→</button>
+                    </div>
+                </div>
+                <button id="p1TouchSprint" class="touch-button action-button">Sprint (N)</button>
+                <button id="p1TouchCatch" class="touch-button action-button">Catch (M)</button>
+            </div>
+            <div id="player2TouchControls" class="touch-controls">
+                <p>Player 2 (Green)</p>
+                 <div class="d-pad">
+                    <button id="p2TouchUp" class="touch-button d-pad-up">↑ (W)</button>
+                    <div>
+                        <button id="p2TouchLeft" class="touch-button d-pad-left">← (A)</button>
+                        <button id="p2TouchDown" class="touch-button d-pad-down">↓ (S)</button>
+                        <button id="p2TouchRight" class="touch-button d-pad-right">→ (D)</button>
+                    </div>
+                </div>
+                <button id="p2TouchSprint" class="touch-button action-button">Sprint (V)</button>
+                <button id="p2TouchCatch" class="touch-button action-button">Catch (B)</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

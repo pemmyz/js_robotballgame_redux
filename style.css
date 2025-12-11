@@ -1,0 +1,231 @@
+:root {
+    /* Dark Mode Defaults */
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --canvas-bg: #222222;
+    --canvas-border: #444;
+    --panel-bg: #1e1e1e;
+    --panel-border: #333;
+    --button-bg: #3a3a3a;
+    --button-text: #e0e0e0;
+    --button-border: #555;
+    --button-active-bg: #505050;
+    --shadow-color: rgba(255, 255, 255, 0.05);
+    --hint-text-color: #aaa;
+    --toggle-button-bg: #333;
+    --toggle-button-text: #fff;
+    --sprint-bar-empty-bg: #444444;
+    --sprint-bar-full-bg: #388E3C;
+    --sprint-bar-border: #666666;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding-top: 50px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: Arial, sans-serif;
+    overscroll-behavior-y: contain;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.light-mode {
+    --bg-color: #f0f0f0;
+    --text-color: #000000;
+    --canvas-bg: #e8e8e8; /* Slightly darker for contrast against 2.5D objects */
+    --canvas-border: black;
+    --panel-bg: #fff;
+    --panel-border: #ccc;
+    --button-bg: #e9e9e9;
+    --button-text: #000000;
+    --button-border: #ccc;
+    --button-active-bg: #d0d0d0;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --hint-text-color: #555;
+    --toggle-button-bg: #ddd;
+    --toggle-button-text: #000;
+    --sprint-bar-empty-bg: #cccccc;
+    --sprint-bar-full-bg: #4CAF50;
+    --sprint-bar-border: #aaaaaa;
+}
+
+#darkModeToggle {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 8px 15px;
+    font-size: 0.9em;
+    cursor: pointer;
+    background: var(--toggle-button-bg);
+    color: var(--toggle-button-text);
+    border: 1px solid var(--button-border);
+    border-radius: 5px;
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
+    z-index: 200;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#gameCanvas {
+    border: 1px solid var(--canvas-border);
+    background-color: var(--canvas-bg);
+    touch-action: none;
+    /* Optional: Subtle grid for depth perception */
+    background-image: radial-gradient(var(--button-border) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+
+#infoPanel {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid var(--panel-border);
+    background-color: var(--panel-bg);
+    color: var(--text-color);
+    min-width: 320px;
+    max-width: 800px;
+    width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.player-info-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.player-info-column {
+    flex-basis: 48%;
+    display: flex;
+    flex-direction: column;
+}
+.player-info-column p {
+    margin: 3px 0;
+    font-size: 0.9em;
+}
+.player-name {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 5px !important;
+}
+
+.sprint-bar-container {
+    width: 100%;
+    height: 14px;
+    background-color: var(--sprint-bar-empty-bg);
+    border: 1px solid var(--sprint-bar-border);
+    border-radius: 4px;
+    margin: 5px 0;
+    overflow: hidden;
+}
+
+.sprint-bar-fill {
+    height: 100%;
+    background-color: var(--sprint-bar-full-bg);
+    width: 100%;
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+.game-stats-row {
+    padding-top: 5px;
+    text-align: center;
+}
+.game-stats-row p {
+    margin: 4px 0;
+    font-size: 0.95em;
+}
+#pauseHelpText {
+    font-size: 0.8em !important;
+    margin-top: 8px !important;
+}
+
+/* --- Touch Controls --- */
+#touchControlsContainer {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    max-width: 800px;
+    margin-top: 15px;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+.touch-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background-color: var(--panel-bg);
+    color: var(--text-color);
+    flex: 1;
+    margin: 0 5px;
+}
+
+.touch-controls p {
+    margin-bottom: 10px;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.touch-button {
+    padding: 12px 10px;
+    min-width: 60px;
+    width: 100%;
+    max-width: 120px;
+    font-size: 1em;
+    cursor: pointer;
+    border: 1px solid var(--button-border);
+    color: var(--button-text);
+    background-color: var(--button-bg);
+    border-radius: 5px;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.touch-button:active {
+    background-color: var(--button-active-bg);
+}
+
+.d-pad {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+}
+.d-pad div {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+}
+.d-pad-up, .d-pad-down { width: calc(33.33% - 4px); margin: 0 auto; }
+.d-pad-left, .d-pad-right { width: calc(33.33% - 4px); }
+.action-button { margin-top: 5px; }
+
+@media (max-width: 600px) {
+    body { padding-top: 60px; }
+    #darkModeToggle { top: 5px; right: 5px; padding: 6px 10px; }
+    .player-info-container { flex-direction: column; gap: 10px; }
+    .player-info-column { flex-basis: 100%; }
+    #touchControlsContainer { flex-direction: column; gap: 10px; }
+    .touch-controls { width: 90%; margin: 0 auto; }
+    .touch-button { padding: 15px 12px; font-size: 1.1em; }
+    .d-pad-up, .d-pad-down, .d-pad-left, .d-pad-right { width: calc(30% - 4px); }
+}
