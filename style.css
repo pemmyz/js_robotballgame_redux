@@ -11,7 +11,7 @@
     --button-border: #555;
     --button-active-bg: #505050;
     --shadow-color: rgba(255, 255, 255, 0.05);
-    --hint-text-color: #aaa;
+    --hint-text-color: #888;
     --toggle-button-bg: #333;
     --toggle-button-text: #fff;
     --sprint-bar-empty-bg: #444444;
@@ -37,7 +37,7 @@ body {
 body.light-mode {
     --bg-color: #f0f0f0;
     --text-color: #000000;
-    --canvas-bg: #e8e8e8; /* Slightly darker for contrast against 2.5D objects */
+    --canvas-bg: #e8e8e8;
     --canvas-border: black;
     --panel-bg: #fff;
     --panel-border: #ccc;
@@ -79,7 +79,6 @@ body.light-mode {
     border: 1px solid var(--canvas-border);
     background-color: var(--canvas-bg);
     touch-action: none;
-    /* Optional: Subtle grid for depth perception */
     background-image: radial-gradient(var(--button-border) 1px, transparent 1px);
     background-size: 40px 40px;
 }

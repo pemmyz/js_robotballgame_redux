@@ -58,6 +58,12 @@ let showHelp = false;
 let start_time = performance.now();
 let lastFrameTime = performance.now();
 
+// Gamepad State
+let gamepadState = {
+    p1Index: null,
+    p2Index: null
+};
+
 // DOM Elements
 const scoreTextElem = document.getElementById('scoreText');
 const totalTimeTextElem = document.getElementById('totalTimeText');
@@ -126,14 +132,22 @@ class RobotEntity {
         this.aiModes = ["NONE", "DEFAULT", "DEFENSIVE", "AGGRESSIVE"];
         this.aiModeIndex = aiIndex;
         this.aiMode = this.aiModes[this.aiModeIndex];
+        this.isGamepadControlled = false;
     }
 
     cycleAI() {
+        if (this.isGamepadControlled) return; // Locked if gamepad is active
         this.aiModeIndex = (this.aiModeIndex + 1) % this.aiModes.length;
         this.aiMode = this.aiModes[this.aiModeIndex];
         // Stop movement when switching modes
         this.inputVec = Vec2(0,0);
         this.body.setLinearVelocity(Vec2(0,0));
+    }
+    
+    forcePlayerMode() {
+        this.aiModeIndex = 0; // NONE
+        this.aiMode = "NONE";
+        this.isGamepadControlled = true;
     }
 
     update(dt) {
@@ -250,6 +264,10 @@ function resetGame() {
     robot1 = new RobotEntity(150, HEIGHT/2, COLORS.blue, COLORS.blueSide, WIDTH, ai1);
     robot2 = new RobotEntity(WIDTH - 150, HEIGHT/2, COLORS.green, COLORS.greenSide, 0, ai2);
 
+    // Maintain gamepad status across resets
+    if (gamepadState.p1Index !== null) robot1.forcePlayerMode();
+    if (gamepadState.p2Index !== null) robot2.forcePlayerMode();
+
     start_time = performance.now();
 }
 
@@ -336,6 +354,7 @@ function render() {
 function handleInput() {
     if (!robot1 || !robot2) return;
 
+    // 1. Keyboard Input
     let r1x = 0, r1y = 0;
     let r2x = 0, r2y = 0;
 
@@ -344,18 +363,91 @@ function handleInput() {
     if (keysPressed['ArrowLeft']) r1x = -1;
     if (keysPressed['ArrowRight']) r1x = 1;
     
-    robot1.inputVec = Vec2(r1x, r1y);
-    robot1.wantsSprint = !!keysPressed['KeyN'];
-    robot1.wantsCatch = !!keysPressed['KeyM'];
-
     if (keysPressed['KeyW']) r2y = -1;
     if (keysPressed['KeyS']) r2y = 1;
     if (keysPressed['KeyA']) r2x = -1;
     if (keysPressed['KeyD']) r2x = 1;
 
+    let r1Sprint = !!keysPressed['KeyN'];
+    let r1Catch = !!keysPressed['KeyM'];
+    let r2Sprint = !!keysPressed['KeyV'];
+    let r2Catch = !!keysPressed['KeyB'];
+
+    // 2. Gamepad Input
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    
+    // Assignment Logic
+    for (let i = 0; i < gamepads.length; i++) {
+        const gp = gamepads[i];
+        if (!gp) continue;
+
+        // Skip if this gamepad is already assigned
+        if (gamepadState.p1Index === gp.index || gamepadState.p2Index === gp.index) {
+            // Processing logic for assigned gamepads
+            const DEADZONE = 0.2;
+            let moveX = gp.axes[0];
+            let moveY = gp.axes[1];
+            
+            // Apply deadzone
+            if (Math.abs(moveX) < DEADZONE) moveX = 0;
+            if (Math.abs(moveY) < DEADZONE) moveY = 0;
+
+            // D-Pad Support (Buttons 12,13,14,15)
+            if (gp.buttons[12] && gp.buttons[12].pressed) moveY = -1;
+            if (gp.buttons[13] && gp.buttons[13].pressed) moveY = 1;
+            if (gp.buttons[14] && gp.buttons[14].pressed) moveX = -1;
+            if (gp.buttons[15] && gp.buttons[15].pressed) moveX = 1;
+
+            // Buttons: 0(A), 1(B), 2(X), 3(Y)
+            // Logic: Sprint on A(0), Catch on B(1), X(2), or Y(3)
+            let btnSprint = (gp.buttons[0] && gp.buttons[0].pressed);
+            let btnCatch = (gp.buttons[1] && gp.buttons[1].pressed) || 
+                           (gp.buttons[2] && gp.buttons[2].pressed) || 
+                           (gp.buttons[3] && gp.buttons[3].pressed);
+
+            if (gp.index === gamepadState.p1Index) {
+                if (moveX !== 0 || moveY !== 0) { r1x = moveX; r1y = moveY; }
+                if (btnSprint) r1Sprint = true;
+                if (btnCatch) r1Catch = true;
+            } else if (gp.index === gamepadState.p2Index) {
+                if (moveX !== 0 || moveY !== 0) { r2x = moveX; r2y = moveY; }
+                if (btnSprint) r2Sprint = true;
+                if (btnCatch) r2Catch = true;
+            }
+
+            continue;
+        }
+
+        // Assigning new gamepads
+        // Check for ABXY (0-3) or Dpad (12-15) press to assign
+        let pressed = false;
+        const checkBtns = [0, 1, 2, 3, 12, 13, 14, 15];
+        for (let b of checkBtns) {
+            if (gp.buttons[b] && gp.buttons[b].pressed) {
+                pressed = true;
+                break;
+            }
+        }
+
+        if (pressed) {
+            if (gamepadState.p1Index === null) {
+                gamepadState.p1Index = gp.index;
+                robot1.forcePlayerMode();
+            } else if (gamepadState.p2Index === null) {
+                gamepadState.p2Index = gp.index;
+                robot2.forcePlayerMode();
+            }
+        }
+    }
+
+    // 3. Apply to Robots
+    robot1.inputVec = Vec2(r1x, r1y);
+    robot1.wantsSprint = r1Sprint;
+    robot1.wantsCatch = r1Catch;
+
     robot2.inputVec = Vec2(r2x, r2y);
-    robot2.wantsSprint = !!keysPressed['KeyV'];
-    robot2.wantsCatch = !!keysPressed['KeyB'];
+    robot2.wantsSprint = r2Sprint;
+    robot2.wantsCatch = r2Catch;
 }
 
 window.addEventListener('keydown', (e) => {
@@ -415,9 +507,17 @@ function updateUI() {
     scoreTextElem.textContent = `Score: Blue ${total_goals_robot1} - Green ${total_goals_robot2}`;
     
     p1SprintBarFill.style.width = robot1.sprintEnergy + "%";
-    blueStatusTextElem.textContent = `Status: ${robot1.aiMode}`;
+    
+    // Status Text Update
+    let p1Status = robot1.aiMode;
+    if (gamepadState.p1Index !== null) p1Status = "PLAYER (GAMEPAD)";
+    blueStatusTextElem.textContent = `Status: ${p1Status}`;
+
     p2SprintBarFill.style.width = robot2.sprintEnergy + "%";
-    greenStatusTextElem.textContent = `Status: ${robot2.aiMode}`;
+    
+    let p2Status = robot2.aiMode;
+    if (gamepadState.p2Index !== null) p2Status = "PLAYER (GAMEPAD)";
+    greenStatusTextElem.textContent = `Status: ${p2Status}`;
     
     totalTimeTextElem.textContent = `Time: ${Math.floor((performance.now() - start_time)/1000)}s`;
     
@@ -459,7 +559,11 @@ function drawHelp() {
     ctx.fillText("CONTROLS", WIDTH/2, 90);
     ctx.font = "16px Arial"; ctx.textAlign = "left"; let y = 140;
     ctx.fillText("PLAYER 1 (Blue): Arrows, N (Sprint), M (Catch)", 80, y);
-    ctx.fillText("PLAYER 2 (Green): WASD, V (Sprint), B (Catch)", 80, y+=40);
+    ctx.fillText("PLAYER 2 (Green): WASD, V (Sprint), B (Catch)", 80, y+=30);
+    ctx.fillText("GAMEPAD: Connect & press A/B/X/Y to join.", 80, y+=30);
+    ctx.fillText("   Move: Left Stick/D-pad", 80, y+=20);
+    ctx.fillText("   Sprint: Button A(0)", 80, y+=20);
+    ctx.fillText("   Catch: Button B(1), X(2), or Y(3)", 80, y+=20);
     ctx.fillText("SYSTEM: P (Pause), H (Help), 1/2 (Cycle AI)", 80, y+=40);
 }
 
