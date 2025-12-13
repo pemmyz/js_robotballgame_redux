@@ -1,11 +1,18 @@
 // --- CONFIGURATION & CONSTANTS ---
 const WIDTH = 800;
 const HEIGHT = 600;
-
-// Physics Scale: 1 Meter = 20 Pixels
-const SCALE = 20;
+const SCALE = 20; // 1 Meter = 20 Pixels
 const P_WIDTH = WIDTH / SCALE;
 const P_HEIGHT = HEIGHT / SCALE;
+
+// Dynamic Configuration (Modified by Sliders)
+let GAME_CONFIG = {
+    robotSpeed: 14.0,
+    sprintSpeed: 22.0,
+    ballRestitution: 0.7,
+    sprintDrain: 40,
+    sprintRecharge: 20
+};
 
 // Dimensions
 const BALL_RADIUS = 10;
@@ -16,24 +23,10 @@ const GOAL_DEPTH = 20;
 
 // Colors
 let COLORS = {
-    white: "white",
-    black: "black",
-    red: "#ff3333",
-    green: "#4CAF50",
-    greenSide: "#2E7D32",
-    blue: "#2196F3",
-    blueSide: "#1565C0",
-    shadow: "rgba(0, 0, 0, 0.3)"
+    white: "white", black: "black",
+    red: "#ff3333", green: "#4CAF50", greenSide: "#2E7D32",
+    blue: "#2196F3", blueSide: "#1565C0", shadow: "rgba(0, 0, 0, 0.3)"
 };
-
-// Gameplay Constants
-const ROBOT_SPEED = 14.0;          // Base Speed
-const ROBOT_SPRINT_SPEED = 22.0;   // Sprint Speed
-const BALL_DAMPING = 0.6;          // Air resistance for ball
-
-const SPRINT_ENERGY_MAX = 100;
-const SPRINT_COST_PER_SEC = 40;
-const SPRINT_RECHARGE_PER_SEC = 20;
 
 // Planck.js Aliases
 const pl = planck;
@@ -42,289 +35,369 @@ const Vec2 = pl.Vec2;
 // --- GLOBAL VARIABLES ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = WIDTH;
-canvas.height = HEIGHT;
+canvas.width = WIDTH; canvas.height = HEIGHT;
 
 let world;
 let ballBody;
 let robot1, robot2; 
-
-// Game State
-let total_goals_robot1 = 0;
-let total_goals_robot2 = 0;
 let keysPressed = {};
+
+// Game State Enum
+const STATE = { MENU: 0, PLAYING: 1, AUTOBOT: 2 };
+let currentState = STATE.MENU;
+
+let score = { blue: 0, green: 0 };
+let startTime = 0;
+let lastFrameTime = performance.now();
 let isPaused = false;
 let showHelp = false;
-let start_time = performance.now();
-let lastFrameTime = performance.now();
 
-// Gamepad State
-let gamepadState = {
-    p1Index: null,
-    p2Index: null
-};
+// Menu Timer Variables
+let menuIdleTime = 0;
+const IDLE_THRESHOLD = 6; // Seconds
+let idleTimerActive = true;
 
 // DOM Elements
-const scoreTextElem = document.getElementById('scoreText');
-const totalTimeTextElem = document.getElementById('totalTimeText');
-const p1SprintBarFill = document.getElementById('p1SprintBarFill');
-const blueStatusTextElem = document.getElementById('blueStatusText');
-const p2SprintBarFill = document.getElementById('p2SprintBarFill');
-const greenStatusTextElem = document.getElementById('greenStatusText');
+const uiMenu = document.getElementById('mainMenu');
+const uiOptions = document.getElementById('optionsMenu');
+const uiGame = document.getElementById('inGameUI');
+const elCountdown = document.getElementById('countdownTimer');
+const elScore = document.getElementById('scoreText');
+const elTime = document.getElementById('totalTimeText');
+const elSprint1 = document.getElementById('p1SprintBarFill');
+const elSprint2 = document.getElementById('p2SprintBarFill');
+const elStatus1 = document.getElementById('blueStatusText');
+const elStatus2 = document.getElementById('greenStatusText');
 
 // --- PHYSICS SETUP ---
 function initPhysics() {
     world = pl.World(Vec2(0, 0)); 
-
     const wallOpts = { density: 0.0, friction: 0.2, restitution: 0.5 };
     const goalHalfW = (GOAL_WIDTH / SCALE) / 2;
 
-    // Create Walls
+    // Walls
     world.createBody().createFixture(pl.Edge(Vec2(0, 0), Vec2(P_WIDTH, 0)), wallOpts);
     world.createBody().createFixture(pl.Edge(Vec2(0, P_HEIGHT), Vec2(P_WIDTH, P_HEIGHT)), wallOpts);
     
-    world.createBody().createFixture(pl.Edge(Vec2(0, 0), Vec2(0, P_HEIGHT/2 - goalHalfW)), wallOpts);
-    world.createBody().createFixture(pl.Edge(Vec2(0, P_HEIGHT/2 + goalHalfW), Vec2(0, P_HEIGHT)), wallOpts);
-    world.createBody().createFixture(pl.Edge(Vec2(P_WIDTH, 0), Vec2(P_WIDTH, P_HEIGHT/2 - goalHalfW)), wallOpts);
-    world.createBody().createFixture(pl.Edge(Vec2(P_WIDTH, P_HEIGHT/2 + goalHalfW), Vec2(P_WIDTH, P_HEIGHT)), wallOpts);
+    // Goals
+    const makeWall = (v1, v2) => world.createBody().createFixture(pl.Edge(v1, v2), wallOpts);
+    makeWall(Vec2(0, 0), Vec2(0, P_HEIGHT/2 - goalHalfW));
+    makeWall(Vec2(0, P_HEIGHT/2 + goalHalfW), Vec2(0, P_HEIGHT));
+    makeWall(Vec2(P_WIDTH, 0), Vec2(P_WIDTH, P_HEIGHT/2 - goalHalfW));
+    makeWall(Vec2(P_WIDTH, P_HEIGHT/2 + goalHalfW), Vec2(P_WIDTH, P_HEIGHT));
     
     const gd = GOAL_DEPTH / SCALE;
-    const makeGoal = (x, dir) => {
+    const makeGoalBox = (x, dir) => {
         const g = world.createBody();
-        const xBack = x + (dir * gd);
-        g.createFixture(pl.Edge(Vec2(x, P_HEIGHT/2 - goalHalfW), Vec2(xBack, P_HEIGHT/2 - goalHalfW))); 
-        g.createFixture(pl.Edge(Vec2(x, P_HEIGHT/2 + goalHalfW), Vec2(xBack, P_HEIGHT/2 + goalHalfW))); 
-        g.createFixture(pl.Edge(Vec2(xBack, P_HEIGHT/2 - goalHalfW), Vec2(xBack, P_HEIGHT/2 + goalHalfW))); 
+        const xb = x + (dir * gd);
+        g.createFixture(pl.Edge(Vec2(x, P_HEIGHT/2 - goalHalfW), Vec2(xb, P_HEIGHT/2 - goalHalfW))); 
+        g.createFixture(pl.Edge(Vec2(x, P_HEIGHT/2 + goalHalfW), Vec2(xb, P_HEIGHT/2 + goalHalfW))); 
+        g.createFixture(pl.Edge(Vec2(xb, P_HEIGHT/2 - goalHalfW), Vec2(xb, P_HEIGHT/2 + goalHalfW))); 
     };
-    makeGoal(0, -1);       
-    makeGoal(P_WIDTH, 1);  
+    makeGoalBox(0, -1);       
+    makeGoalBox(P_WIDTH, 1);  
 }
 
-// --- CLASSES ---
-
+// --- ROBOT CLASS ---
 class RobotEntity {
-    constructor(startX, startY, color, sideColor, goalTargetX, aiIndex) {
+    constructor(startX, startY, color, sideColor, goalTargetX, aiType) {
         this.color = color;
         this.sideColor = sideColor;
-        this.goalTargetX = goalTargetX;
+        this.goalTargetX = goalTargetX; // X coord of goal to score IN
         
         this.body = world.createBody({
             type: 'dynamic',
             position: Vec2(startX / SCALE, startY / SCALE),
-            linearDamping: 1.0, 
-            fixedRotation: true
+            linearDamping: 1.0, fixedRotation: true
         });
         
         this.body.createFixture(pl.Circle(ROBOT_RADIUS / SCALE), {
-            density: 2.0, 
-            friction: 0.3,
-            restitution: 0.1
+            density: 2.0, friction: 0.3, restitution: 0.1
         });
 
-        this.sprintEnergy = SPRINT_ENERGY_MAX;
+        this.sprintEnergy = 100;
         this.isSprinting = false;
-        this.hasBall = false;
-
+        
+        // AI Logic
+        this.aiTypes = ["PLAYER", "DEFAULT", "DEFENSIVE", "AGGRESSIVE", "CHAOTIC"];
+        this.setAI(aiType);
+        
         this.inputVec = Vec2(0, 0);
         this.wantsSprint = false;
         this.wantsCatch = false;
+        this.randomTimer = 0;
+        this.randomTarget = null;
+    }
 
-        this.aiModes = ["NONE", "DEFAULT", "DEFENSIVE", "AGGRESSIVE"];
-        this.aiModeIndex = aiIndex;
-        this.aiMode = this.aiModes[this.aiModeIndex];
-        this.isGamepadControlled = false;
+    setAI(type) {
+        if(this.aiTypes.includes(type)) this.aiType = type;
+        else this.aiType = "DEFAULT";
     }
 
     cycleAI() {
-        if (this.isGamepadControlled) return; // Locked if gamepad is active
-        this.aiModeIndex = (this.aiModeIndex + 1) % this.aiModes.length;
-        this.aiMode = this.aiModes[this.aiModeIndex];
-        // Stop movement when switching modes
-        this.inputVec = Vec2(0,0);
-        this.body.setLinearVelocity(Vec2(0,0));
-    }
-    
-    forcePlayerMode() {
-        this.aiModeIndex = 0; // NONE
-        this.aiMode = "NONE";
-        this.isGamepadControlled = true;
+        let idx = this.aiTypes.indexOf(this.aiType);
+        idx = (idx + 1) % this.aiTypes.length;
+        this.aiType = this.aiTypes[idx];
     }
 
     update(dt) {
-        if (this.aiMode !== "NONE") {
-            this.runAI();
-        }
+        if (this.aiType !== "PLAYER") this.runAI(dt);
 
-        // Energy
-        if (!this.isSprinting && this.sprintEnergy < SPRINT_ENERGY_MAX) {
-            this.sprintEnergy += SPRINT_RECHARGE_PER_SEC * dt;
-        }
+        // Recharge/Drain
+        if (!this.isSprinting && this.sprintEnergy < 100) 
+            this.sprintEnergy += GAME_CONFIG.sprintRecharge * dt;
 
-        // Velocity Calculation
-        let speed = ROBOT_SPEED;
-        
+        let speed = GAME_CONFIG.robotSpeed;
         if (this.wantsSprint && this.sprintEnergy > 1) {
             this.isSprinting = true;
-            speed = ROBOT_SPRINT_SPEED;
-            this.sprintEnergy -= SPRINT_COST_PER_SEC * dt;
+            speed = GAME_CONFIG.sprintSpeed;
+            this.sprintEnergy -= GAME_CONFIG.sprintDrain * dt;
         } else {
             this.isSprinting = false;
         }
 
-        let desiredVel = Vec2(0, 0);
+        // Apply Velocity
+        let desiredVel = Vec2(0,0);
         if (this.inputVec.length() > 0.1) {
             this.inputVec.normalize();
             desiredVel = Vec2.mul(this.inputVec, speed);
         }
-
-        // Apply Velocity with Smoothing
+        
         const currentVel = this.body.getLinearVelocity();
-        // ** FIX IS HERE: changed lengthSq() to lengthSquared() **
-        let smoothFactor = (desiredVel.lengthSquared() > 0.1) ? 0.2 : 0.15;
-        
-        const newVel = Vec2.add(
-            Vec2.mul(currentVel, 1.0 - smoothFactor),
-            Vec2.mul(desiredVel, smoothFactor)
-        );
-        
-        this.body.setLinearVelocity(newVel);
-        this.body.setAwake(true); 
+        // Smoothing
+        let smooth = (desiredVel.lengthSquared() > 0.1) ? 0.2 : 0.15;
+        this.body.setLinearVelocity(Vec2.add(Vec2.mul(currentVel, 1.0 - smooth), Vec2.mul(desiredVel, smooth)));
 
-        // Catch Logic
+        // Catch/Magnet Logic
+        if (this.wantsCatch) this.applyCatchMechanic();
+    }
+
+    applyCatchMechanic() {
         const bPos = ballBody.getPosition();
         const rPos = this.body.getPosition();
-        const distToBall = Vec2.distance(bPos, rPos);
-        const catchRange = (ROBOT_RADIUS + BALL_RADIUS + 5) / SCALE;
+        const dist = Vec2.distance(bPos, rPos);
+        const range = (ROBOT_RADIUS + BALL_RADIUS + 5) / SCALE;
 
-        if (this.wantsCatch && distToBall < catchRange) {
-            this.hasBall = true;
+        if (dist < range) {
             let dir = this.body.getLinearVelocity();
+            // If stopped, push towards goal
             if (dir.length() < 0.5) dir = Vec2(this.goalTargetX > WIDTH/2 ? 1 : -1, 0);
             dir.normalize();
             
-            const holdDist = (ROBOT_RADIUS + BALL_RADIUS + 2) / SCALE;
-            const targetBallPos = Vec2.add(rPos, Vec2.mul(dir, holdDist));
-            
-            const pull = Vec2.sub(targetBallPos, bPos);
+            const holdPos = Vec2.add(rPos, Vec2.mul(dir, (ROBOT_RADIUS + BALL_RADIUS + 2)/SCALE));
+            const pull = Vec2.sub(holdPos, bPos);
             ballBody.setLinearVelocity(Vec2.mul(pull, 10)); 
             ballBody.setAngularVelocity(0);
-        } else {
-            this.hasBall = false;
         }
     }
 
-    runAI() {
+    runAI(dt) {
         const bPos = ballBody.getPosition();
         const rPos = this.body.getPosition();
+        const ballX = bPos.x * SCALE;
         
         let target = bPos; 
+        this.wantsSprint = false;
+        this.wantsCatch = false;
 
-        if (this.aiMode === "DEFENSIVE") {
-            const defenseX = (this.goalTargetX < WIDTH/2) ? P_WIDTH - 8 : 8; 
-            if (Math.abs(bPos.x - defenseX) > 10) {
-                 target = Vec2(defenseX, P_HEIGHT/2); 
-                 if (Vec2.distance(bPos, rPos) < 15) target = bPos; 
-            }
-        } else if (this.aiMode === "AGGRESSIVE" && this.hasBall) {
-            target = Vec2(this.goalTargetX/SCALE, P_HEIGHT/2);
+        switch (this.aiType) {
+            case "DEFENSIVE": // Goalie
+                // Determine defensive line (own goal side)
+                let defenseX = (this.goalTargetX > WIDTH/2) ? 100 : WIDTH - 100; // If I score Right, I defend Left
+                if (this.goalTargetX < WIDTH/2) defenseX = WIDTH - 100;
+                
+                // Only move out if ball is close to our side
+                let distToDefense = Math.abs(ballX - defenseX);
+
+                if (distToDefense < 250) {
+                     // Charge ball
+                     target = bPos; 
+                     this.wantsSprint = (distToDefense < 100);
+                     this.wantsCatch = (Vec2.distance(bPos, rPos) < 3);
+                } else {
+                     // Align with ball Y on defense line
+                     target = Vec2(defenseX / SCALE, bPos.y);
+                }
+                break;
+
+            case "AGGRESSIVE": // Striker
+                target = bPos;
+                if (Vec2.distance(bPos, rPos) > 6) this.wantsSprint = true;
+                this.wantsCatch = (Vec2.distance(bPos, rPos) < 3);
+                break;
+
+            case "CHAOTIC": // Random
+                this.randomTimer -= dt;
+                if (this.randomTimer <= 0) {
+                    this.randomTarget = Vec2(Math.random()*P_WIDTH, Math.random()*P_HEIGHT);
+                    this.randomTimer = 0.5 + Math.random();
+                }
+                target = this.randomTarget;
+                if (Math.random() < 0.05) this.wantsCatch = true;
+                break;
+
+            case "DEFAULT": // Balanced
+            default:
+                // Try to get behind ball to push to goal
+                let vecToGoal = Vec2(this.goalTargetX/SCALE - bPos.x, (HEIGHT/2)/SCALE - bPos.y);
+                vecToGoal.normalize();
+                let behindPos = Vec2.sub(bPos, Vec2.mul(vecToGoal, 1.5)); 
+                
+                let distToBall = Vec2.distance(rPos, bPos);
+                if (distToBall < 4) {
+                    target = bPos;
+                    if (this.sprintEnergy > 40) this.wantsSprint = true;
+                } else {
+                    target = behindPos;
+                }
+                break;
         }
 
         const diff = Vec2.sub(target, rPos);
-        if (diff.length() > 0.5) this.inputVec = diff;
+        if (diff.length() > 0.2) this.inputVec = diff;
         else this.inputVec = Vec2(0,0);
-
-        const dist = Vec2.distance(bPos, rPos);
-        this.wantsSprint = (dist > 8 && this.sprintEnergy > 30);
-        this.wantsCatch = (dist < 3);
     }
 }
 
-// --- GAME LIFECYCLE ---
+// --- GAME LOGIC ---
 
-function resetGame() {
-    let ai1 = 0, ai2 = 0;
-    if (robot1) ai1 = robot1.aiModeIndex;
-    if (robot2) ai2 = robot2.aiModeIndex;
+function setupGame(mode) {
+    // Mode: 'human' or 'auto'
+    let p1AI = (mode === 'human') ? 'PLAYER' : document.getElementById('selAiBlue').value;
+    let p2AI = document.getElementById('selAiGreen').value; 
 
+    // Clear old bodies
     if(ballBody) world.destroyBody(ballBody);
     if(robot1) world.destroyBody(robot1.body);
     if(robot2) world.destroyBody(robot2.body);
 
+    // Create Ball
     ballBody = world.createBody({
-        type: 'dynamic',
-        position: Vec2(P_WIDTH / 2, P_HEIGHT / 2),
-        linearDamping: BALL_DAMPING,
-        angularDamping: 0.8
+        type: 'dynamic', position: Vec2(P_WIDTH / 2, P_HEIGHT / 2),
+        linearDamping: 0.6, angularDamping: 0.8
     });
     ballBody.createFixture(pl.Circle(BALL_RADIUS / SCALE), { 
-        density: 0.8, restitution: 0.7, friction: 0.3 
+        density: 0.8, restitution: parseFloat(GAME_CONFIG.ballRestitution), friction: 0.3 
     });
-    ballBody.setLinearVelocity(Vec2((Math.random()-0.5)*8, (Math.random()-0.5)*8));
 
-    robot1 = new RobotEntity(150, HEIGHT/2, COLORS.blue, COLORS.blueSide, WIDTH, ai1);
-    robot2 = new RobotEntity(WIDTH - 150, HEIGHT/2, COLORS.green, COLORS.greenSide, 0, ai2);
+    // Create Robots
+    robot1 = new RobotEntity(150, HEIGHT/2, COLORS.blue, COLORS.blueSide, WIDTH, p1AI);
+    robot2 = new RobotEntity(WIDTH - 150, HEIGHT/2, COLORS.green, COLORS.greenSide, 0, p2AI);
 
-    // Maintain gamepad status across resets
-    if (gamepadState.p1Index !== null) robot1.forcePlayerMode();
-    if (gamepadState.p2Index !== null) robot2.forcePlayerMode();
+    score = { blue: 0, green: 0 };
+    startTime = performance.now();
+    isPaused = false;
+    showHelp = false;
+    
+    // UI Transitions
+    uiMenu.classList.add('hidden');
+    uiOptions.classList.add('hidden');
+    uiGame.classList.remove('hidden');
+    
+    currentState = (mode === 'auto') ? STATE.AUTOBOT : STATE.PLAYING;
+}
 
-    start_time = performance.now();
+function stopGame() {
+    currentState = STATE.MENU;
+    uiGame.classList.add('hidden');
+    uiMenu.classList.remove('hidden');
+    resetIdleTimer();
+}
+
+function handleGoal() {
+    const bPos = ballBody.getPosition();
+    const bx = bPos.x * SCALE;
+    
+    // Check Goals
+    if (bx < -5 && Math.abs((bPos.y*SCALE) - HEIGHT/2) < GOAL_WIDTH/2 + 20) {
+        score.green++; resetBall();
+    } else if (bx > WIDTH + 5 && Math.abs((bPos.y*SCALE) - HEIGHT/2) < GOAL_WIDTH/2 + 20) {
+        score.blue++; resetBall();
+    }
+    // Out of bounds reset
+    if (bx < -50 || bx > WIDTH + 50 || bPos.y*SCALE < -50 || bPos.y*SCALE > HEIGHT + 50) {
+        resetBall();
+    }
+}
+
+function resetBall() {
+    ballBody.setPosition(Vec2(P_WIDTH/2, P_HEIGHT/2));
+    ballBody.setLinearVelocity(Vec2(0,0));
+    ballBody.setAngularVelocity(0);
+    // Random toss
+    ballBody.setLinearVelocity(Vec2((Math.random()-0.5)*10, (Math.random()-0.5)*10));
+    
+    robot1.body.setPosition(Vec2(150/SCALE, HEIGHT/2/SCALE));
+    robot1.body.setLinearVelocity(Vec2(0,0));
+    robot1.sprintEnergy = 100;
+
+    robot2.body.setPosition(Vec2((WIDTH-150)/SCALE, HEIGHT/2/SCALE));
+    robot2.body.setLinearVelocity(Vec2(0,0));
+    robot2.sprintEnergy = 100;
+}
+
+// --- INPUT HANDLING ---
+
+function handleInput() {
+    if (currentState !== STATE.PLAYING) return;
+    if (robot1.aiType !== 'PLAYER') return; 
+
+    let x = 0, y = 0;
+    if (keysPressed['ArrowUp']) y = -1;
+    if (keysPressed['ArrowDown']) y = 1;
+    if (keysPressed['ArrowLeft']) x = -1;
+    if (keysPressed['ArrowRight']) x = 1;
+
+    robot1.inputVec = Vec2(x, y);
+    robot1.wantsSprint = !!keysPressed['KeyN'];
+    robot1.wantsCatch = !!keysPressed['KeyM'];
 }
 
 // --- RENDERING ---
 
 function drawShadow(x, y, r) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, r, r * 0.6, 0, 0, Math.PI * 2);
-    ctx.fillStyle = COLORS.shadow;
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, y, r, r*0.6, 0, 0, Math.PI*2);
+    ctx.fillStyle = COLORS.shadow; ctx.fill();
 }
 
 function drawCylinder(x, y, r, h, colorTop, colorSide, isSprinting) {
-    drawShadow(x, y, r * 1.2);
-    
+    drawShadow(x, y, r*1.2);
     if (isSprinting) {
-        ctx.save();
-        ctx.globalAlpha = 0.4;
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        ctx.ellipse(x, y, r*1.4, r*1.4*0.5, 0, 0, Math.PI*2);
-        ctx.fill();
-        ctx.restore();
+        ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = "white";
+        ctx.beginPath(); ctx.ellipse(x, y, r*1.4, r*0.7, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
     }
-
-    ctx.fillStyle = colorSide;
-    ctx.fillRect(x - r, y - h, r * 2, h);
-    ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.4, 0, 0, Math.PI, false); ctx.fill(); 
-    
-    ctx.beginPath(); ctx.ellipse(x, y - h, r, r * 0.4, 0, 0, Math.PI * 2);
-    ctx.fillStyle = colorTop; ctx.fill(); ctx.stroke();
+    ctx.fillStyle = colorSide; ctx.fillRect(x-r, y-h, r*2, h);
+    ctx.beginPath(); ctx.ellipse(x, y, r, r*0.4, 0, 0, Math.PI, false); ctx.fill(); 
+    ctx.beginPath(); ctx.ellipse(x, y-h, r, r*0.4, 0, 0, Math.PI*2); ctx.fillStyle = colorTop; ctx.fill(); ctx.stroke();
 }
 
-function drawSphere(x, y, r, color) {
-    drawShadow(x, y + 4, r * 0.9);
+function drawSphere(x, y, r) {
+    drawShadow(x, y+4, r*0.9);
     const drawY = y - r;
-    
-    const grad = ctx.createRadialGradient(x - r*0.3, drawY - r*0.3, r*0.2, x, drawY, r);
-    grad.addColorStop(0, "#ff8888");
-    grad.addColorStop(1, "#aa0000");
-    
-    ctx.beginPath(); ctx.arc(x, drawY, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad; ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.stroke();
+    const grad = ctx.createRadialGradient(x-r*0.3, drawY-r*0.3, r*0.2, x, drawY, r);
+    grad.addColorStop(0, "#ff8888"); grad.addColorStop(1, "#aa0000");
+    ctx.beginPath(); ctx.arc(x, drawY, r, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
+    // Shine
+    ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.beginPath(); ctx.arc(x-r*0.3, drawY-r*0.3, r*0.2, 0, Math.PI*2); ctx.fill();
 }
 
 function render() {
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
-
-    ctx.strokeStyle = COLORS.black; ctx.lineWidth = 2;
+    
+    // Field Markings
+    ctx.strokeStyle = (document.body.classList.contains('light-mode')) ? "#ccc" : "#444"; 
+    ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(WIDTH/2, HEIGHT/2, 60, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(WIDTH/2, 0); ctx.lineTo(WIDTH/2, HEIGHT); ctx.stroke();
     
+    // Goal Boxes
     ctx.fillStyle = "rgba(0,0,0,0.1)";
     ctx.fillRect(0, HEIGHT/2 - GOAL_WIDTH/2, GOAL_DEPTH, GOAL_WIDTH);
     ctx.fillRect(WIDTH - GOAL_DEPTH, HEIGHT/2 - GOAL_WIDTH/2, GOAL_DEPTH, GOAL_WIDTH);
 
+    if (!robot1 || !robot2 || !ballBody) return;
+
+    // Sort Objects for 2.5D Depth
     const objects = [
         { type: 'ball', y: ballBody.getPosition().y * SCALE, x: ballBody.getPosition().x * SCALE },
         { type: 'robot', obj: robot1, y: robot1.body.getPosition().y * SCALE, x: robot1.body.getPosition().x * SCALE },
@@ -333,250 +406,164 @@ function render() {
     objects.sort((a, b) => a.y - b.y);
 
     objects.forEach(o => {
-        if (o.type === 'ball') drawSphere(o.x, o.y, BALL_RADIUS, COLORS.red);
+        if (o.type === 'ball') drawSphere(o.x, o.y, BALL_RADIUS);
         else {
             drawCylinder(o.x, o.y, ROBOT_RADIUS, ROBOT_HEIGHT, o.obj.color, o.obj.sideColor, o.obj.isSprinting);
-            
+            // Direction Indicator
             const vel = o.obj.body.getLinearVelocity();
             if (vel.length() > 0.5) {
                 const angle = Math.atan2(vel.y, vel.x);
                 ctx.save(); ctx.translate(o.x, o.y - ROBOT_HEIGHT); ctx.rotate(angle);
-                ctx.fillStyle = "rgba(255,255,255,0.9)";
+                ctx.fillStyle = "rgba(255,255,255,0.8)";
                 ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(0, 6); ctx.lineTo(0, -6); ctx.fill();
                 ctx.restore();
             }
         }
     });
-}
 
-// --- INPUT HANDLING ---
-
-function handleInput() {
-    if (!robot1 || !robot2) return;
-
-    // 1. Keyboard Input
-    let r1x = 0, r1y = 0;
-    let r2x = 0, r2y = 0;
-
-    if (keysPressed['ArrowUp']) r1y = -1;
-    if (keysPressed['ArrowDown']) r1y = 1;
-    if (keysPressed['ArrowLeft']) r1x = -1;
-    if (keysPressed['ArrowRight']) r1x = 1;
-    
-    if (keysPressed['KeyW']) r2y = -1;
-    if (keysPressed['KeyS']) r2y = 1;
-    if (keysPressed['KeyA']) r2x = -1;
-    if (keysPressed['KeyD']) r2x = 1;
-
-    let r1Sprint = !!keysPressed['KeyN'];
-    let r1Catch = !!keysPressed['KeyM'];
-    let r2Sprint = !!keysPressed['KeyV'];
-    let r2Catch = !!keysPressed['KeyB'];
-
-    // 2. Gamepad Input
-    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-    
-    // Assignment Logic
-    for (let i = 0; i < gamepads.length; i++) {
-        const gp = gamepads[i];
-        if (!gp) continue;
-
-        // Skip if this gamepad is already assigned
-        if (gamepadState.p1Index === gp.index || gamepadState.p2Index === gp.index) {
-            // Processing logic for assigned gamepads
-            const DEADZONE = 0.2;
-            let moveX = gp.axes[0];
-            let moveY = gp.axes[1];
-            
-            // Apply deadzone
-            if (Math.abs(moveX) < DEADZONE) moveX = 0;
-            if (Math.abs(moveY) < DEADZONE) moveY = 0;
-
-            // D-Pad Support (Buttons 12,13,14,15)
-            if (gp.buttons[12] && gp.buttons[12].pressed) moveY = -1;
-            if (gp.buttons[13] && gp.buttons[13].pressed) moveY = 1;
-            if (gp.buttons[14] && gp.buttons[14].pressed) moveX = -1;
-            if (gp.buttons[15] && gp.buttons[15].pressed) moveX = 1;
-
-            // Buttons: 0(A), 1(B), 2(X), 3(Y)
-            // Logic: Sprint on A(0), Catch on B(1), X(2), or Y(3)
-            let btnSprint = (gp.buttons[0] && gp.buttons[0].pressed);
-            let btnCatch = (gp.buttons[1] && gp.buttons[1].pressed) || 
-                           (gp.buttons[2] && gp.buttons[2].pressed) || 
-                           (gp.buttons[3] && gp.buttons[3].pressed);
-
-            if (gp.index === gamepadState.p1Index) {
-                if (moveX !== 0 || moveY !== 0) { r1x = moveX; r1y = moveY; }
-                if (btnSprint) r1Sprint = true;
-                if (btnCatch) r1Catch = true;
-            } else if (gp.index === gamepadState.p2Index) {
-                if (moveX !== 0 || moveY !== 0) { r2x = moveX; r2y = moveY; }
-                if (btnSprint) r2Sprint = true;
-                if (btnCatch) r2Catch = true;
-            }
-
-            continue;
-        }
-
-        // Assigning new gamepads
-        // Check for ABXY (0-3) or Dpad (12-15) press to assign
-        let pressed = false;
-        const checkBtns = [0, 1, 2, 3, 12, 13, 14, 15];
-        for (let b of checkBtns) {
-            if (gp.buttons[b] && gp.buttons[b].pressed) {
-                pressed = true;
-                break;
-            }
-        }
-
-        if (pressed) {
-            if (gamepadState.p1Index === null) {
-                gamepadState.p1Index = gp.index;
-                robot1.forcePlayerMode();
-            } else if (gamepadState.p2Index === null) {
-                gamepadState.p2Index = gp.index;
-                robot2.forcePlayerMode();
-            }
+    if (isPaused && currentState !== STATE.MENU) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0,0,WIDTH,HEIGHT);
+        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "40px Arial";
+        ctx.fillText(showHelp ? "CONTROLS HELP" : "PAUSED", WIDTH/2, HEIGHT/2 - 20);
+        if(showHelp) {
+            ctx.font = "16px Arial"; 
+            ctx.fillText("Arrows: Move | N: Sprint | M: Catch", WIDTH/2, HEIGHT/2 + 20);
+            ctx.fillText("1 / 2: Cycle Bot AI", WIDTH/2, HEIGHT/2 + 50);
         }
     }
-
-    // 3. Apply to Robots
-    robot1.inputVec = Vec2(r1x, r1y);
-    robot1.wantsSprint = r1Sprint;
-    robot1.wantsCatch = r1Catch;
-
-    robot2.inputVec = Vec2(r2x, r2y);
-    robot2.wantsSprint = r2Sprint;
-    robot2.wantsCatch = r2Catch;
 }
-
-window.addEventListener('keydown', (e) => {
-    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
-    
-    if(e.code === 'KeyP') { isPaused = !isPaused; return; }
-    if(e.code === 'KeyH') { showHelp = !showHelp; isPaused = showHelp; return; }
-    if(e.code === 'Digit1') { robot1.cycleAI(); return; }
-    if(e.code === 'Digit2') { robot2.cycleAI(); return; }
-    
-    keysPressed[e.code] = true;
-});
-
-window.addEventListener('keyup', (e) => {
-    keysPressed[e.code] = false;
-});
-
-const touchButtons = [
-    {id:'p1TouchUp', k:'ArrowUp'}, {id:'p1TouchDown', k:'ArrowDown'}, 
-    {id:'p1TouchLeft', k:'ArrowLeft'}, {id:'p1TouchRight', k:'ArrowRight'},
-    {id:'p1TouchSprint', k:'KeyN'}, {id:'p1TouchCatch', k:'KeyM'},
-    {id:'p2TouchUp', k:'KeyW'}, {id:'p2TouchDown', k:'KeyS'}, 
-    {id:'p2TouchLeft', k:'KeyA'}, {id:'p2TouchRight', k:'KeyD'},
-    {id:'p2TouchSprint', k:'KeyV'}, {id:'p2TouchCatch', k:'KeyB'}
-];
-
-touchButtons.forEach(btn => {
-    const el = document.getElementById(btn.id);
-    if(el) {
-        const press = (e) => { if(e.cancelable) e.preventDefault(); keysPressed[btn.k] = true; };
-        const release = (e) => { if(e.cancelable) e.preventDefault(); keysPressed[btn.k] = false; };
-        
-        el.addEventListener('mousedown', press);
-        el.addEventListener('touchstart', press, {passive: false});
-        el.addEventListener('mouseup', release);
-        el.addEventListener('touchend', release, {passive: false});
-        el.addEventListener('mouseleave', release);
-    }
-});
-
-// --- UI & LOOP ---
 
 function updateUI() {
-    const bPos = ballBody.getPosition();
-    const bx = bPos.x * SCALE;
-    
-    if (bx < -5 && Math.abs((bPos.y*SCALE) - HEIGHT/2) < GOAL_WIDTH/2 + 20) {
-        total_goals_robot2++; resetGame();
-    } else if (bx > WIDTH + 5 && Math.abs((bPos.y*SCALE) - HEIGHT/2) < GOAL_WIDTH/2 + 20) {
-        total_goals_robot1++; resetGame();
-    }
-
-    if (bx < -50 || bx > WIDTH + 50 || bPos.y*SCALE < -50 || bPos.y*SCALE > HEIGHT + 50) {
-        resetGame();
-    }
-
-    scoreTextElem.textContent = `Score: Blue ${total_goals_robot1} - Green ${total_goals_robot2}`;
-    
-    p1SprintBarFill.style.width = robot1.sprintEnergy + "%";
-    
-    // Status Text Update
-    let p1Status = robot1.aiMode;
-    if (gamepadState.p1Index !== null) p1Status = "PLAYER (GAMEPAD)";
-    blueStatusTextElem.textContent = `Status: ${p1Status}`;
-
-    p2SprintBarFill.style.width = robot2.sprintEnergy + "%";
-    
-    let p2Status = robot2.aiMode;
-    if (gamepadState.p2Index !== null) p2Status = "PLAYER (GAMEPAD)";
-    greenStatusTextElem.textContent = `Status: ${p2Status}`;
-    
-    totalTimeTextElem.textContent = `Time: ${Math.floor((performance.now() - start_time)/1000)}s`;
-    
-    if (document.body.classList.contains('light-mode')) {
-        COLORS.white = "#222"; COLORS.black = "#222";
-    } else {
-        COLORS.white = "white"; COLORS.black = "white";
-    }
-}
-
-function loop() {
-    requestAnimationFrame(loop);
-
-    const now = performance.now();
-    let dt = (now - lastFrameTime) / 1000;
-    lastFrameTime = now;
-    if (dt > 0.1) dt = 0.1; 
-
-    if (isPaused || showHelp) {
-        render();
-        if(showHelp) drawHelp();
-        else drawPause();
+    if (currentState === STATE.MENU) {
+        let remaining = Math.ceil(IDLE_THRESHOLD - menuIdleTime);
+        elCountdown.innerText = remaining > 0 ? remaining : "0";
+        // Simple visual for menu render (optional background effect)
         return;
     }
 
-    handleInput();
-    robot1.update(dt);
-    robot2.update(dt);
+    elScore.textContent = `Score: Blue ${score.blue} - Green ${score.green}`;
+    elTime.textContent = `Time: ${Math.floor((performance.now() - startTime)/1000)}s`;
     
-    world.step(1/60); 
+    elSprint1.style.width = robot1.sprintEnergy + "%";
+    elStatus1.textContent = `AI: ${robot1.aiType}`;
+    
+    elSprint2.style.width = robot2.sprintEnergy + "%";
+    elStatus2.textContent = `AI: ${robot2.aiType}`;
+}
+
+// --- MAIN LOOP ---
+
+function loop() {
+    requestAnimationFrame(loop);
+    const now = performance.now();
+    let dt = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+    if (dt > 0.1) dt = 0.1;
+
+    // State Machine
+    if (currentState === STATE.MENU) {
+        if (idleTimerActive) {
+            menuIdleTime += dt;
+            if (menuIdleTime >= IDLE_THRESHOLD) {
+                setupGame('auto'); // Trigger Autobot
+            }
+        }
+        render(); // Render menu background (empty field)
+        updateUI();
+        return;
+    }
+
+    if (!isPaused) {
+        handleInput();
+        robot1.update(dt);
+        robot2.update(dt);
+        world.step(1/60);
+        handleGoal();
+    }
 
     render();
     updateUI();
 }
 
-function drawHelp() {
-    ctx.fillStyle = "rgba(0,0,0,0.85)"; ctx.fillRect(40, 40, WIDTH-80, HEIGHT-80);
-    ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 24px Arial";
-    ctx.fillText("CONTROLS", WIDTH/2, 90);
-    ctx.font = "16px Arial"; ctx.textAlign = "left"; let y = 140;
-    ctx.fillText("PLAYER 1 (Blue): Arrows, N (Sprint), M (Catch)", 80, y);
-    ctx.fillText("PLAYER 2 (Green): WASD, V (Sprint), B (Catch)", 80, y+=30);
-    ctx.fillText("GAMEPAD: Connect & press A/B/X/Y to join.", 80, y+=30);
-    ctx.fillText("   Move: Left Stick/D-pad", 80, y+=20);
-    ctx.fillText("   Sprint: Button A(0)", 80, y+=20);
-    ctx.fillText("   Catch: Button B(1), X(2), or Y(3)", 80, y+=20);
-    ctx.fillText("SYSTEM: P (Pause), H (Help), 1/2 (Cycle AI)", 80, y+=40);
-}
+// --- EVENT LISTENERS ---
 
-function drawPause() {
-    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, 0, WIDTH, HEIGHT);
-    ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "40px Arial";
-    ctx.fillText("PAUSED", WIDTH/2, HEIGHT/2);
+// Input Reset on Activity
+function resetIdleTimer() {
+    menuIdleTime = 0;
+    if (currentState === STATE.AUTOBOT) {
+        // Break out of autobot on interaction? 
+        // Optional: stopGame(); 
+    }
 }
+window.addEventListener('mousemove', resetIdleTimer);
+window.addEventListener('mousedown', resetIdleTimer);
+window.addEventListener('keydown', (e) => {
+    resetIdleTimer();
+    // Keybinds
+    if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    if (currentState === STATE.PLAYING || currentState === STATE.AUTOBOT) {
+        if(e.code === 'KeyP') isPaused = !isPaused;
+        if(e.code === 'KeyH') { showHelp = !showHelp; isPaused = showHelp; }
+        if(e.code === 'Digit1') robot1.cycleAI();
+        if(e.code === 'Digit2') robot2.cycleAI();
+    }
+    keysPressed[e.code] = true;
+});
+window.addEventListener('keyup', (e) => keysPressed[e.code] = false);
+
+// UI Buttons
+document.getElementById('btnStartGame').addEventListener('click', () => setupGame('human'));
+document.getElementById('btnAutobot').addEventListener('click', () => setupGame('auto'));
+document.getElementById('btnMenuReturn').addEventListener('click', stopGame);
+
+document.getElementById('btnOptions').addEventListener('click', () => {
+    idleTimerActive = false; // Stop countdown while in options
+    uiMenu.classList.add('hidden');
+    uiOptions.classList.remove('hidden');
+});
+document.getElementById('btnCloseOptions').addEventListener('click', () => {
+    idleTimerActive = true;
+    menuIdleTime = 0;
+    uiOptions.classList.add('hidden');
+    uiMenu.classList.remove('hidden');
+});
+
+// Slider Logic
+function bindSlider(id, configKey, displayId) {
+    const slider = document.getElementById(id);
+    const display = document.getElementById(displayId);
+    slider.addEventListener('input', (e) => {
+        GAME_CONFIG[configKey] = parseFloat(e.target.value);
+        if(display) display.innerText = e.target.value;
+    });
+}
+bindSlider('slSpeed', 'robotSpeed', 'valSpeed');
+bindSlider('slSprint', 'sprintSpeed', 'valSprint');
+bindSlider('slBounce', 'ballRestitution', 'valBounce');
+
+// Touch Controls
+const touchButtons = [
+    {id:'p1TouchUp', k:'ArrowUp'}, {id:'p1TouchDown', k:'ArrowDown'}, 
+    {id:'p1TouchLeft', k:'ArrowLeft'}, {id:'p1TouchRight', k:'ArrowRight'},
+    {id:'p1TouchSprint', k:'KeyN'}, {id:'p1TouchCatch', k:'KeyM'}
+];
+touchButtons.forEach(btn => {
+    const el = document.getElementById(btn.id);
+    if(el) {
+        const press = (e) => { if(e.cancelable) e.preventDefault(); keysPressed[btn.k] = true; resetIdleTimer(); };
+        const release = (e) => { if(e.cancelable) e.preventDefault(); keysPressed[btn.k] = false; resetIdleTimer(); };
+        el.addEventListener('mousedown', press); el.addEventListener('touchstart', press, {passive:false});
+        el.addEventListener('mouseup', release); el.addEventListener('touchend', release, {passive:false});
+        el.addEventListener('mouseleave', release);
+    }
+});
 
 document.getElementById('darkModeToggle').addEventListener('click', () => {
     document.body.classList.toggle('light-mode');
 });
 
+// Start
 initPhysics();
-resetGame();
+// Pre-render field for menu
+render();
 loop();

@@ -10,13 +10,7 @@
     --button-text: #e0e0e0;
     --button-border: #555;
     --button-active-bg: #505050;
-    --shadow-color: rgba(255, 255, 255, 0.05);
-    --hint-text-color: #888;
-    --toggle-button-bg: #333;
-    --toggle-button-text: #fff;
-    --sprint-bar-empty-bg: #444444;
-    --sprint-bar-full-bg: #388E3C;
-    --sprint-bar-border: #666666;
+    --highlight: #2196F3;
 }
 
 body {
@@ -26,12 +20,10 @@ body {
     align-items: center;
     min-height: 100vh;
     margin: 0;
-    padding-top: 50px;
     background-color: var(--bg-color);
     color: var(--text-color);
-    font-family: Arial, sans-serif;
-    overscroll-behavior-y: contain;
-    transition: background-color 0.3s, color 0.3s;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden; /* Prevent scroll on overlay */
 }
 
 body.light-mode {
@@ -45,186 +37,66 @@ body.light-mode {
     --button-text: #000000;
     --button-border: #ccc;
     --button-active-bg: #d0d0d0;
-    --shadow-color: rgba(0, 0, 0, 0.1);
-    --hint-text-color: #555;
-    --toggle-button-bg: #ddd;
-    --toggle-button-text: #000;
-    --sprint-bar-empty-bg: #cccccc;
-    --sprint-bar-full-bg: #4CAF50;
-    --sprint-bar-border: #aaaaaa;
 }
 
-#darkModeToggle {
+/* --- OVERLAYS --- */
+.overlay-menu {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 8px 15px;
-    font-size: 0.9em;
-    cursor: pointer;
-    background: var(--toggle-button-bg);
-    color: var(--toggle-button-text);
-    border: 1px solid var(--button-border);
-    border-radius: 5px;
-    transition: background 0.3s, color 0.3s, border-color 0.3s;
-    z-index: 200;
-}
-
-.game-container {
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
     display: flex;
     flex-direction: column;
-    align-items: center;
-}
-
-#gameCanvas {
-    border: 1px solid var(--canvas-border);
-    background-color: var(--canvas-bg);
-    touch-action: none;
-    background-image: radial-gradient(var(--button-border) 1px, transparent 1px);
-    background-size: 40px 40px;
-}
-
-#infoPanel {
-    margin-top: 10px;
-    padding: 10px;
-    border: 1px solid var(--panel-border);
-    background-color: var(--panel-bg);
-    color: var(--text-color);
-    min-width: 320px;
-    max-width: 800px;
-    width: 100%;
-    box-sizing: border-box;
-    box-shadow: 0 2px 4px var(--shadow-color);
-}
-
-.player-info-container {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-}
-
-.player-info-column {
-    flex-basis: 48%;
-    display: flex;
-    flex-direction: column;
-}
-.player-info-column p {
-    margin: 3px 0;
-    font-size: 0.9em;
-}
-.player-name {
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 5px !important;
-}
-
-.sprint-bar-container {
-    width: 100%;
-    height: 14px;
-    background-color: var(--sprint-bar-empty-bg);
-    border: 1px solid var(--sprint-bar-border);
-    border-radius: 4px;
-    margin: 5px 0;
-    overflow: hidden;
-}
-
-.sprint-bar-fill {
-    height: 100%;
-    background-color: var(--sprint-bar-full-bg);
-    width: 100%;
-    border-radius: 3px;
-    transition: width 0.1s linear;
-}
-
-.game-stats-row {
-    padding-top: 5px;
-    text-align: center;
-}
-.game-stats-row p {
-    margin: 4px 0;
-    font-size: 0.95em;
-}
-#pauseHelpText {
-    font-size: 0.8em !important;
-    margin-top: 8px !important;
-}
-
-/* --- Touch Controls --- */
-#touchControlsContainer {
-    display: flex;
-    justify-content: space-around;
-    width: 100%;
-    max-width: 800px;
-    margin-top: 15px;
-    padding: 0 10px;
-    box-sizing: border-box;
-}
-
-.touch-controls {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 10px;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    background-color: var(--panel-bg);
-    color: var(--text-color);
-    flex: 1;
-    margin: 0 5px;
-}
-
-.touch-controls p {
-    margin-bottom: 10px;
-    font-weight: bold;
-    font-size: 0.9em;
-}
-
-.touch-button {
-    padding: 12px 10px;
-    min-width: 60px;
-    width: 100%;
-    max-width: 120px;
-    font-size: 1em;
-    cursor: pointer;
-    border: 1px solid var(--button-border);
-    color: var(--button-text);
-    background-color: var(--button-bg);
-    border-radius: 5px;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    box-sizing: border-box;
-    transition: background-color 0.2s, border-color 0.2s, color 0.2s;
-}
-
-.touch-button:active {
-    background-color: var(--button-active-bg);
-}
-
-.d-pad {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
-    width: 100%;
-}
-.d-pad div {
-    display: flex;
     justify-content: center;
-    gap: 5px;
-    width: 100%;
+    align-items: center;
+    z-index: 100;
+    transition: opacity 0.3s;
 }
-.d-pad-up, .d-pad-down { width: calc(33.33% - 4px); margin: 0 auto; }
-.d-pad-left, .d-pad-right { width: calc(33.33% - 4px); }
-.action-button { margin-top: 5px; }
 
-@media (max-width: 600px) {
-    body { padding-top: 60px; }
-    #darkModeToggle { top: 5px; right: 5px; padding: 6px 10px; }
-    .player-info-container { flex-direction: column; gap: 10px; }
-    .player-info-column { flex-basis: 100%; }
-    #touchControlsContainer { flex-direction: column; gap: 10px; }
-    .touch-controls { width: 90%; margin: 0 auto; }
-    .touch-button { padding: 15px 12px; font-size: 1.1em; }
-    .d-pad-up, .d-pad-down, .d-pad-left, .d-pad-right { width: calc(30% - 4px); }
+.overlay-menu.hidden {
+    opacity: 0;
+    pointer-events: none;
+    z-index: -1;
 }
+
+.overlay-menu h1 { font-size: 3rem; margin-bottom: 0; color: var(--highlight); text-transform: uppercase; letter-spacing: 2px; }
+.subtitle { color: #888; margin-top: 5px; margin-bottom: 40px; }
+
+.menu-buttons { display: flex; flex-direction: column; gap: 15px; width: 300px; }
+.menu-buttons button, .back-btn {
+    padding: 15px; font-size: 1.1rem; cursor: pointer;
+    background: var(--button-bg); color: var(--button-text);
+    border: 1px solid var(--button-border); border-radius: 5px;
+    transition: transform 0.1s, background 0.2s;
+}
+.menu-buttons button:hover { background: var(--button-active-bg); transform: scale(1.02); }
+
+#autoCountdownBox { margin-top: 30px; text-align: center; color: #aaa; }
+#countdownTimer { font-weight: bold; color: var(--highlight); font-size: 1.2em; }
+.small-hint { font-size: 0.8em; color: #666; }
+
+/* --- OPTIONS --- */
+.option-group { margin-bottom: 15px; width: 300px; display: flex; justify-content: space-between; align-items: center; }
+.option-group label { font-weight: bold; }
+input[type=range] { width: 150px; cursor: pointer; }
+select { padding: 5px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); }
+
+/* --- GAME UI --- */
+#inGameUI.hidden { display: none; }
+.game-container { position: relative; display: flex; flex-direction: column; align-items: center; }
+#gameCanvas { border: 2px solid var(--canvas-border); background-color: var(--canvas-bg); background-image: radial-gradient(var(--button-border) 1px, transparent 1px); background-size: 40px 40px; }
+
+/* Existing UI Styles (Info Panel, Touch) preserved/condensed */
+#infoPanel { margin-top: 10px; padding: 10px; background: var(--panel-bg); border: 1px solid var(--panel-border); width: 100%; max-width: 800px; box-sizing: border-box; }
+.player-info-container { display: flex; justify-content: space-between; }
+.player-info-column { width: 48%; text-align: center; }
+.sprint-bar-container { height: 10px; background: #555; border-radius: 5px; overflow: hidden; margin: 5px 0; }
+.sprint-bar-fill { height: 100%; background: #4CAF50; width: 100%; transition: width 0.1s; }
+.game-stats-row { text-align: center; font-size: 0.9em; margin-top: 5px; }
+#touchControlsContainer { display: flex; justify-content: center; margin-top: 10px; gap: 10px; width: 100%; max-width: 800px; }
+.touch-controls { background: var(--panel-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--panel-border); }
+.d-pad { display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
+.d-pad div { display: flex; gap: 5px; }
+.touch-button { width: 40px; height: 40px; margin: 2px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); border-radius: 4px; }
+.action-button { width: 100%; margin-top: 5px; height: 30px; }
+#darkModeToggle { position: absolute; top: 10px; right: 10px; z-index: 200; padding: 5px 10px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); cursor: pointer; }
