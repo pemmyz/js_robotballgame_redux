@@ -1,5 +1,4 @@
 :root {
-    /* Dark Mode Defaults */
     --bg-color: #121212;
     --text-color: #e0e0e0;
     --canvas-bg: #222222;
@@ -16,14 +15,17 @@
 body {
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
     min-height: 100vh;
     margin: 0;
     background-color: var(--bg-color);
     color: var(--text-color);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    overflow: hidden; /* Prevent scroll on overlay */
+    
+    /* FIX: Allow scrolling on the page, but handle touches carefully */
+    overflow-y: auto; 
+    touch-action: pan-y; 
+    padding-bottom: 50px; /* Space at bottom for scrolling */
 }
 
 body.light-mode {
@@ -41,9 +43,9 @@ body.light-mode {
 
 /* --- OVERLAYS --- */
 .overlay-menu {
-    position: absolute;
+    position: fixed; /* Changed to fixed so it stays on screen */
     top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.85);
+    background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(5px);
     display: flex;
     flex-direction: column;
@@ -59,7 +61,7 @@ body.light-mode {
     z-index: -1;
 }
 
-.overlay-menu h1 { font-size: 3rem; margin-bottom: 0; color: var(--highlight); text-transform: uppercase; letter-spacing: 2px; }
+.overlay-menu h1 { font-size: 3rem; margin-bottom: 0; color: var(--highlight); text-transform: uppercase; letter-spacing: 2px; text-align: center; }
 .subtitle { color: #888; margin-top: 5px; margin-bottom: 40px; }
 
 .menu-buttons { display: flex; flex-direction: column; gap: 15px; width: 300px; }
@@ -78,25 +80,38 @@ body.light-mode {
 /* --- OPTIONS --- */
 .option-group { margin-bottom: 15px; width: 300px; display: flex; justify-content: space-between; align-items: center; }
 .option-group label { font-weight: bold; }
-input[type=range] { width: 150px; cursor: pointer; }
+input[type=range] { width: 140px; cursor: pointer; }
 select { padding: 5px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); }
 
 /* --- GAME UI --- */
 #inGameUI.hidden { display: none; }
-.game-container { position: relative; display: flex; flex-direction: column; align-items: center; }
-#gameCanvas { border: 2px solid var(--canvas-border); background-color: var(--canvas-bg); background-image: radial-gradient(var(--button-border) 1px, transparent 1px); background-size: 40px 40px; }
+.game-container { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; }
 
-/* Existing UI Styles (Info Panel, Touch) preserved/condensed */
+#gameCanvas { 
+    border: 2px solid var(--canvas-border); 
+    background-color: var(--canvas-bg); 
+    background-image: radial-gradient(var(--button-border) 1px, transparent 1px); 
+    background-size: 40px 40px;
+    /* FIX: Prevent canvas dragging from scrolling the page */
+    touch-action: none; 
+    max-width: 100%;
+}
+
 #infoPanel { margin-top: 10px; padding: 10px; background: var(--panel-bg); border: 1px solid var(--panel-border); width: 100%; max-width: 800px; box-sizing: border-box; }
 .player-info-container { display: flex; justify-content: space-between; }
 .player-info-column { width: 48%; text-align: center; }
 .sprint-bar-container { height: 10px; background: #555; border-radius: 5px; overflow: hidden; margin: 5px 0; }
 .sprint-bar-fill { height: 100%; background: #4CAF50; width: 100%; transition: width 0.1s; }
 .game-stats-row { text-align: center; font-size: 0.9em; margin-top: 5px; }
-#touchControlsContainer { display: flex; justify-content: center; margin-top: 10px; gap: 10px; width: 100%; max-width: 800px; }
-.touch-controls { background: var(--panel-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--panel-border); }
+
+#touchControlsContainer { 
+    display: flex; justify-content: center; margin-top: 10px; gap: 10px; width: 100%; max-width: 800px; 
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+.touch-controls { background: var(--panel-bg); padding: 10px; border-radius: 8px; border: 1px solid var(--panel-border); min-width: 140px; flex: 1; }
 .d-pad { display: flex; flex-direction: column; align-items: center; margin-bottom: 5px; }
 .d-pad div { display: flex; gap: 5px; }
-.touch-button { width: 40px; height: 40px; margin: 2px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); border-radius: 4px; }
-.action-button { width: 100%; margin-top: 5px; height: 30px; }
+.touch-button { width: 40px; height: 40px; margin: 2px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); border-radius: 4px; font-size: 1.2em; }
+.action-button { width: 100%; margin-top: 5px; height: 35px; font-size: 0.9em; }
+
 #darkModeToggle { position: absolute; top: 10px; right: 10px; z-index: 200; padding: 5px 10px; background: var(--button-bg); color: var(--button-text); border: 1px solid var(--button-border); cursor: pointer; }
