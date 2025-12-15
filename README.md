@@ -6,6 +6,9 @@ A fast-paced 2.5D JavaScript physics sports game where two robot players
 compete to score goals using a rolling ball, powered by **Planck.js**
 (Box2D).
 
+## Screenshots
+![Game 1](screenshots/game_1.png)
+
 ## 🚀 Features
 
 -   2-player competitive gameplay (Blue vs Green)
