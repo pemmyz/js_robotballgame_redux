@@ -235,7 +235,7 @@ class RobotEntity {
         const robotVel = this.body.getLinearVelocity();
         
         // (Robot Velocity) + (Correction to Snap Point * Speed)
-        ballBody.setLinearVelocity(Vec2.add(robotVel, Vec2.mul(pull, 20.0))); // changed from 10
+        ballBody.setLinearVelocity(Vec2.add(robotVel, Vec2.mul(pull, 50.0))); // changed from 10
         ballBody.setAngularVelocity(0);
     }
 
